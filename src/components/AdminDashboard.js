@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { db, auth } from '../firebase';
 import { collection, query, getDocs, doc, updateDoc, where, getDoc } from 'firebase/firestore';
 import { FiFileText } from 'react-icons/fi';
@@ -6,6 +6,182 @@ import { useNavigate } from 'react-router-dom';
 import FeeForm from './FeeForm';
 import ViewMore from './ViewMore';
 import './AdminDashboard.css';
+
+// Binary Search Tree Node
+class BSTNode {
+    constructor(application) {
+        this.application = application;
+        this.left = null;
+        this.right = null;
+    }
+}
+
+// Hash Table for O(1) application lookup
+class HashTable {
+    constructor(size = 53) {
+        this.keyMap = new Array(size);
+    }
+
+    _hash(key) {
+        let total = 0;
+        let WEIRD_PRIME = 31;
+        for (let i = 0; i < Math.min(key.length, 100); i++) {
+            let char = key[i];
+            let value = char.charCodeAt(0) - 96;
+            total = (total * WEIRD_PRIME + value) % this.keyMap.length;
+        }
+        return total;
+    }
+
+    set(key, value) {
+        let index = this._hash(key);
+        if (!this.keyMap[index]) {
+            this.keyMap[index] = [];
+        }
+        this.keyMap[index].push([key, value]);
+    }
+
+    get(key) {
+        let index = this._hash(key);
+        if (this.keyMap[index]) {
+            for (let i = 0; i < this.keyMap[index].length; i++) {
+                if (this.keyMap[index][i][0] === key) {
+                    return this.keyMap[index][i][1];
+                }
+            }
+        }
+        return undefined;
+    }
+}
+
+// Priority Queue for managing urgent applications
+class PriorityQueue {
+    constructor() {
+        this.values = [];
+    }
+
+    enqueue(application, priority) {
+        this.values.push({application, priority});
+        this._bubbleUp();
+    }
+
+    dequeue() {
+        const max = this.values[0];
+        const end = this.values.pop();
+        if (this.values.length > 0) {
+            this.values[0] = end;
+            this._sinkDown();
+        }
+        return max;
+    }
+
+    _bubbleUp() {
+        let idx = this.values.length - 1;
+        const element = this.values[idx];
+        while (idx > 0) {
+            let parentIdx = Math.floor((idx - 1) / 2);
+            let parent = this.values[parentIdx];
+            if (element.priority <= parent.priority) break;
+            this.values[parentIdx] = element;
+            this.values[idx] = parent;
+            idx = parentIdx;
+        }
+    }
+
+    _sinkDown() {
+        let idx = 0;
+        const length = this.values.length;
+        const element = this.values[0];
+        while (true) {
+            let leftChildIdx = 2 * idx + 1;
+            let rightChildIdx = 2 * idx + 2;
+            let leftChild, rightChild;
+            let swap = null;
+
+            if (leftChildIdx < length) {
+                leftChild = this.values[leftChildIdx];
+                if (leftChild.priority > element.priority) {
+                    swap = leftChildIdx;
+                }
+            }
+            if (rightChildIdx < length) {
+                rightChild = this.values[rightChildIdx];
+                if (
+                    (swap === null && rightChild.priority > element.priority) || 
+                    (swap !== null && rightChild.priority > leftChild.priority)
+                ) {
+                    swap = rightChildIdx;
+                }
+            }
+            if (swap === null) break;
+            this.values[idx] = this.values[swap];
+            this.values[swap] = element;
+            idx = swap;
+        }
+    }
+}
+
+// Trie Node for search suggestions
+class TrieNode {
+    constructor() {
+        this.children = {};
+        this.isEndOfWord = false;
+        this.applications = [];
+    }
+}
+
+// Trie for efficient name search
+class Trie {
+    constructor() {
+        this.root = new TrieNode();
+    }
+
+    insert(word, application) {
+        if (!word) return; // Skip if word is empty
+        
+        let node = this.root;
+        // Convert name to lowercase and split into words
+        const words = word.toLowerCase().split(' ');
+        
+        // Insert each word in the name
+        words.forEach(word => {
+            for (let char of word) {
+                if (!node.children[char]) {
+                    node.children[char] = new TrieNode();
+                }
+                node = node.children[char];
+                // Store unique applications (avoid duplicates)
+                if (!node.applications.some(app => app.id === application.id)) {
+                    node.applications.push(application);
+                }
+            }
+            node.isEndOfWord = true;
+        });
+    }
+
+    search(prefix) {
+        if (!prefix) return [];
+        
+        let node = this.root;
+        prefix = prefix.toLowerCase();
+        
+        // Navigate to the last node of the prefix
+        for (let char of prefix) {
+            if (!node.children[char]) {
+                return [];
+            }
+            node = node.children[char];
+        }
+        
+        // Return the applications stored at this node
+        return node.applications;
+    }
+
+    // Clear all data from the trie
+    clear() {
+        this.root = new TrieNode();
+    }
+}
 
 const AdminDashboard = () => {
     const navigate = useNavigate();
@@ -20,6 +196,14 @@ const AdminDashboard = () => {
     const [selectedApplication, setSelectedApplication] = useState(null);
     const [showViewMore, setShowViewMore] = useState(false);
     const [isUpdatingFee, setIsUpdatingFee] = useState(false);
+
+    // Initialize data structures with useRef to maintain persistence
+    const searchTrieRef = useRef(new Trie());
+    const [applicationBST, setApplicationBST] = useState(null);
+    const [applicationHash] = useState(new HashTable());
+    const [urgentQueue] = useState(new PriorityQueue());
+    const [searchSuggestions, setSearchSuggestions] = useState([]);
+    const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
         const unsubscribe = auth.onAuthStateChanged(async (user) => {
@@ -75,6 +259,29 @@ const AdminDashboard = () => {
         }
     }, [applications, currentStage]);
 
+    // Function to insert into BST
+    const insertIntoBST = (root, application) => {
+        if (!root) return new BSTNode(application);
+        
+        if (new Date(application.appliedDate) < new Date(root.application.appliedDate)) {
+            root.left = insertIntoBST(root.left, application);
+        } else {
+            root.right = insertIntoBST(root.right, application);
+        }
+        return root;
+    };
+
+    // Function to get applications in order (inorder traversal)
+    const getInorderApplications = (root, result = []) => {
+        if (root) {
+            getInorderApplications(root.left, result);
+            result.push(root.application);
+            getInorderApplications(root.right, result);
+        }
+        return result;
+    };
+
+    // Enhanced fetchApplications with DSA
     const fetchApplications = async (college) => {
         try {
             if (!college) {
@@ -95,33 +302,70 @@ const AdminDashboard = () => {
             const querySnapshot = await getDocs(q);
             console.log('Query complete. Found documents:', querySnapshot.size);
 
+            let root = null;
             const apps = [];
+            
             querySnapshot.forEach((doc) => {
                 const data = doc.data();
-                console.log('Processing application:', doc.id, data);
-                
-                // Convert timestamps to dates if they exist
-                const appliedDate = data.appliedDate?.toDate?.() || new Date(data.appliedDate);
-                const lastUpdated = data.lastUpdated?.toDate?.() || new Date(data.lastUpdated);
-
-                apps.push({
+                const application = {
                     id: doc.id,
                     ...data,
-                    appliedDate,
-                    lastUpdated,
+                    appliedDate: data.appliedDate?.toDate?.() || new Date(data.appliedDate),
+                    lastUpdated: data.lastUpdated?.toDate?.() || new Date(data.lastUpdated),
                     stage: data.stage || 'stage1'
-                });
+                };
+
+                // Insert into BST
+                root = insertIntoBST(root, application);
+                
+                // Add to Hash Table for O(1) lookup
+                applicationHash.set(doc.id, application);
+                
+                // Add to Priority Queue if urgent
+                if (application.stage === 'stage1') {
+                    const priority = new Date(application.appliedDate).getTime();
+                    urgentQueue.enqueue(application, priority);
+                }
+
+                apps.push(application);
             });
 
-            console.log('Processed applications:', apps.length);
+            setApplicationBST(root);
             setApplications(apps);
-            setFilteredApplications(apps); // Set initial filtered applications
+            setFilteredApplications(apps);
         } catch (error) {
             console.error('Error fetching applications:', error);
             setError('Error fetching applications: ' + error.message);
         } finally {
             setLoading(false);
         }
+    };
+
+    // Enhanced application lookup - O(1) time complexity
+    const getApplicationById = (id) => {
+        return applicationHash.get(id);
+    };
+
+    // Get applications sorted by date using BST - O(n) time complexity
+    const getSortedApplications = () => {
+        return applicationBST ? getInorderApplications(applicationBST) : [];
+    };
+
+    // Get urgent applications using Priority Queue
+    const getUrgentApplications = () => {
+        const temp = new PriorityQueue();
+        const urgent = [];
+        while (urgentQueue.values.length) {
+            const item = urgentQueue.dequeue();
+            urgent.push(item.application);
+            temp.enqueue(item.application, item.priority);
+        }
+        // Restore the queue
+        while (temp.values.length) {
+            const item = temp.dequeue();
+            urgentQueue.enqueue(item.application, item.priority);
+        }
+        return urgent;
     };
 
     const filterApplications = (stage) => {
@@ -230,6 +474,48 @@ const AdminDashboard = () => {
         setShowViewMore(true);
     };
 
+    // Enhanced search functionality
+    const handleSearch = useCallback((term) => {
+        setSearchTerm(term);
+        if (term.length >= 2) {
+            console.log('Searching for:', term);
+            const suggestions = searchTrieRef.current.search(term);
+            console.log('Found suggestions:', suggestions.length);
+            setSearchSuggestions(suggestions.slice(0, 10)); // Limit to 10 suggestions
+        } else {
+            setSearchSuggestions([]);
+        }
+    }, []);
+
+    // Handle suggestion click with improved navigation
+    const handleSuggestionClick = useCallback((application) => {
+        console.log('Selected application:', application);
+        
+        // Switch to the application's stage
+        setCurrentStage(application.stage);
+        
+        // Filter applications for this stage
+        const filtered = applications.filter(app => app.stage === application.stage);
+        setFilteredApplications(filtered);
+        
+        // Clear search
+        setSearchTerm('');
+        setSearchSuggestions([]);
+        
+        // Highlight the selected application
+        setSelectedApplication(application);
+        
+        // Scroll to the application card with smooth animation
+        setTimeout(() => {
+            const element = document.getElementById(`application-${application.id}`);
+            if (element) {
+                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                element.classList.add('highlighted');
+                setTimeout(() => element.classList.remove('highlighted'), 2000);
+            }
+        }, 100);
+    }, [applications]);
+
     if (loading) {
         return <div className="loading">Loading...</div>;
     }
@@ -254,29 +540,62 @@ const AdminDashboard = () => {
                 </div>
             )}
 
+            <div className="search-section">
+                <input
+                    type="text"
+                    placeholder="Search by name or email..."
+                    value={searchTerm}
+                    onChange={(e) => handleSearch(e.target.value)}
+                    className="search-input"
+                />
+                {searchSuggestions.length > 0 && (
+                    <div className="search-suggestions">
+                        {searchSuggestions.map((app, index) => (
+                            <div 
+                                key={`${app.id}-${index}`}
+                                className="suggestion-item"
+                                onClick={() => handleSuggestionClick(app)}
+                            >
+                                <div className="suggestion-name">
+                                    {app.studentName || app.fullName}
+                                    <div className="suggestion-email">{app.email}</div>
+                                </div>
+                                <div className="suggestion-info">
+                                    <span className={`stage-indicator ${app.stage}`}>
+                                        {app.stage === 'stage1' ? 'Need to Review' :
+                                         app.stage === 'stage2' ? 'Shortlisted' :
+                                         'Accepted'}
+                                    </span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
             <div className="stage-cards">
                 <div className={`stage-card ${currentStage === 'stage1' ? 'active' : ''}`}
                      onClick={() => setCurrentStage('stage1')}>
-                    <h3>Stage 1: New Applications</h3>
+                    <h3>Stage 1: Need to Review</h3>
                     <div className="count">{getStageCount('stage1')}</div>
                 </div>
                 <div className={`stage-card ${currentStage === 'stage2' ? 'active' : ''}`}
                      onClick={() => setCurrentStage('stage2')}>
-                    <h3>Stage 2: Document Verification</h3>
+                    <h3>Stage 2: Shortlisted</h3>
                     <div className="count">{getStageCount('stage2')}</div>
                 </div>
                 <div className={`stage-card ${currentStage === 'stage3' ? 'active' : ''}`}
                      onClick={() => setCurrentStage('stage3')}>
-                    <h3>Stage 3: Final Approval</h3>
+                    <h3>Stage 3: Accepted</h3>
                     <div className="count">{getStageCount('stage3')}</div>
                 </div>
             </div>
 
             <div className="stage-content">
                 <h2>{
-                    currentStage === 'stage1' ? 'Stage 1: New Applications' :
-                    currentStage === 'stage2' ? 'Stage 2: Document Verification' :
-                    'Stage 3: Final Approval'
+                    currentStage === 'stage1' ? 'Stage 1: Need to Review' :
+                    currentStage === 'stage2' ? 'Stage 2: Shortlisted' :
+                    'Stage 3: Accepted'
                 }</h2>
 
                 {loading ? (
@@ -292,10 +611,18 @@ const AdminDashboard = () => {
                 ) : (
                     <div className="applications-grid">
                         {filteredApplications.map((application) => (
-                            <div key={application.id} className="application-card">
+                            <div 
+                                key={application.id} 
+                                id={`application-${application.id}`}
+                                className={`application-card ${selectedApplication?.id === application.id ? 'highlighted' : ''}`}
+                            >
                                 <div className="card-header">
                                     <h3>{application.fullName}</h3>
-                                    <span className="status-badge">PENDING</span>
+                                    <span className={`status-badge ${application.stage}`}>
+                                        {application.stage === 'stage1' ? 'PENDING' :
+                                         application.stage === 'stage2' ? 'SHORTLISTED' :
+                                         'ACCEPTED'}
+                                    </span>
                                 </div>
                                 <div className="card-content">
                                     <div className="info-row">
@@ -330,12 +657,15 @@ const AdminDashboard = () => {
                                 <div className="card-actions">
                                     <div className="stage-buttons">
                                         {application.stage === 'stage1' && (
-                                            <button 
-                                                onClick={() => handleStageChange(application.id, application.stage, 'stage2')}
-                                                className="stage-btn stage2-btn"
-                                            >
-                                                Move to Stage 2
-                                            </button>
+                                            <>
+                                                <button 
+                                                    onClick={() => handleStageChange(application.id, application.stage, 'stage2')}
+                                                    className="stage-btn stage2-btn"
+                                                >
+                                                    Shortlist Application
+                                                </button>
+                                               
+                                            </>
                                         )}
                                     </div>
                                     <button 

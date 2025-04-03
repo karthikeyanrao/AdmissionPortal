@@ -7,6 +7,155 @@ import ApplicationForm from './ApplicationForm';
 import Navbar from './Navbar';
 import { toast } from 'react-hot-toast';
 
+// Graph Node for Application Status Tracking
+class StatusNode {
+    constructor(status) {
+        this.status = status;
+        this.adjacent = new Map(); // Map of adjacent nodes with timestamps
+    }
+}
+
+// Graph for Application Status Flow
+class ApplicationStatusGraph {
+    constructor() {
+        this.nodes = new Map();
+    }
+
+    addNode(status) {
+        if (!this.nodes.has(status)) {
+            this.nodes.set(status, new StatusNode(status));
+        }
+    }
+
+    addEdge(status1, status2, timestamp) {
+        if (!this.nodes.has(status1)) this.addNode(status1);
+        if (!this.nodes.has(status2)) this.addNode(status2);
+
+        this.nodes.get(status1).adjacent.set(status2, timestamp);
+    }
+
+    getStatusHistory(startStatus) {
+        const history = [];
+        const visited = new Set();
+        
+        const dfs = (currentStatus) => {
+            visited.add(currentStatus);
+            const node = this.nodes.get(currentStatus);
+            
+            node.adjacent.forEach((timestamp, nextStatus) => {
+                if (!visited.has(nextStatus)) {
+                    history.push({ from: currentStatus, to: nextStatus, timestamp });
+                    dfs(nextStatus);
+                }
+            });
+        };
+
+        dfs(startStatus);
+        return history;
+    }
+}
+
+// Doubly Linked List for Application History
+class HistoryNode {
+    constructor(application) {
+        this.application = application;
+        this.next = null;
+        this.prev = null;
+        this.timestamp = new Date();
+    }
+}
+
+class ApplicationHistory {
+    constructor() {
+        this.head = null;
+        this.tail = null;
+        this.size = 0;
+    }
+
+    addToHistory(application) {
+        const newNode = new HistoryNode(application);
+        
+        if (!this.head) {
+            this.head = newNode;
+            this.tail = newNode;
+        } else {
+            newNode.prev = this.tail;
+            this.tail.next = newNode;
+            this.tail = newNode;
+        }
+        
+        this.size++;
+    }
+
+    getHistory() {
+        const history = [];
+        let current = this.head;
+        while (current) {
+            history.push({
+                ...current.application,
+                timestamp: current.timestamp
+            });
+            current = current.next;
+        }
+        return history;
+    }
+}
+
+// LRU Cache for Recently Viewed Applications
+class LRUCache {
+    constructor(capacity) {
+        this.capacity = capacity;
+        this.cache = new Map();
+        this.recent = new Set();
+    }
+
+    get(key) {
+        if (!this.cache.has(key)) return null;
+        
+        // Move to most recent
+        this.recent.delete(key);
+        this.recent.add(key);
+        
+        return this.cache.get(key);
+    }
+
+    put(key, value) {
+        if (this.cache.size >= this.capacity && !this.cache.has(key)) {
+            // Remove least recently used
+            const lru = this.recent.values().next().value;
+            this.recent.delete(lru);
+            this.cache.delete(lru);
+        }
+        
+        this.cache.set(key, value);
+        this.recent.delete(key);
+        this.recent.add(key);
+    }
+
+    getRecent() {
+        return Array.from(this.recent).map(key => this.cache.get(key));
+    }
+}
+
+// QuickSort for Application Sorting
+const quickSort = (applications, compareFunction) => {
+    if (applications.length <= 1) return applications;
+
+    const pivot = applications[Math.floor(applications.length / 2)];
+    const left = [];
+    const right = [];
+    const equal = [];
+
+    for (const app of applications) {
+        const comparison = compareFunction(app, pivot);
+        if (comparison < 0) left.push(app);
+        else if (comparison > 0) right.push(app);
+        else equal.push(app);
+    }
+
+    return [...quickSort(left, compareFunction), ...equal, ...quickSort(right, compareFunction)];
+};
+
 const StudentDashboard = () => {
     const [applications, setApplications] = useState([]);
     const [showApplicationForm, setShowApplicationForm] = useState(false);
@@ -16,6 +165,9 @@ const StudentDashboard = () => {
     const [showFeeDetails, setShowFeeDetails] = useState(false);
     const [selectedApplication, setSelectedApplication] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [applicationHistory] = useState(new ApplicationHistory());
+    const [statusGraph] = useState(new ApplicationStatusGraph());
+    const [recentlyViewed] = useState(new LRUCache(5)); // Store 5 recent applications
 
     useEffect(() => {
         const unsubscribe = auth.onAuthStateChanged((user) => {
@@ -73,20 +225,36 @@ const StudentDashboard = () => {
                     paymentStatus: data.feeDetails.paymentStatus || 'Pending'
                 } : null;
                 
-                apps.push({ 
-                    id: doc.id, 
+                const application = {
+                    id: doc.id,
                     ...data,
                     appliedDate,
                     lastUpdated,
                     feeDetails
-                });
+                };
+
+                // Add to application history
+                applicationHistory.addToHistory(application);
+
+                // Update status graph
+                if (application.previousStatus) {
+                    statusGraph.addEdge(
+                        application.previousStatus,
+                        application.status,
+                        application.lastUpdated
+                    );
+                }
+
+                apps.push(application);
             });
 
-            // Sort by date (newest first)
-            apps.sort((a, b) => b.appliedDate - a.appliedDate);
+            // Sort applications using QuickSort
+            const sortedApps = quickSort(apps, (a, b) => 
+                new Date(b.appliedDate) - new Date(a.appliedDate)
+            );
 
-            console.log('Processed applications with fee details:', apps);
-            setApplications(apps);
+            console.log('Processed applications with fee details:', sortedApps);
+            setApplications(sortedApps);
             setLoading(false);
         } catch (error) {
             console.error('Error fetching applications:', error);
@@ -329,151 +497,188 @@ const StudentDashboard = () => {
         );
     };
 
+    // Handle viewing application details
+    const handleViewApplication = (application) => {
+        // Add to recently viewed cache
+        recentlyViewed.put(application.id, application);
+        
+        // Get status history
+        const statusHistory = statusGraph.getStatusHistory(application.status);
+        
+        setSelectedApplication({
+            ...application,
+            statusHistory,
+            recentlyViewed: recentlyViewed.getRecent()
+        });
+    };
+
+    // Get application history
+    const getApplicationHistory = () => {
+        return applicationHistory.getHistory();
+    };
+
+    // Sort applications by different criteria
+    const sortApplications = (criteria) => {
+        const compareFunctions = {
+            date: (a, b) => new Date(b.appliedDate) - new Date(a.appliedDate),
+            status: (a, b) => a.status.localeCompare(b.status),
+            college: (a, b) => a.collegeName.localeCompare(b.collegeName)
+        };
+
+        const sortedApps = quickSort(applications, compareFunctions[criteria]);
+        setApplications(sortedApps);
+    };
+
     return (
-        <div className="dashboard-wrapper">
-            <Navbar />
-            <div className="dashboard-container">
-                <div className="dashboard-header">
-                    <h1>My Applications</h1>
-                    <div className="dashboard-actions">
-                        <div className="search-bar">
-                            <FiSearch className="search-icon" />
-                            <input
-                                type="text"
-                                placeholder="Search by college or program..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                            />
-                        </div>
-                    </div>
-                </div>
+        <div className="student-dashboard">
+            <Navbar onCreateApplication={() => setShowApplicationForm(true)} />
+            
+            {showApplicationForm && (
+                <ApplicationForm
+                    onClose={() => setShowApplicationForm(false)}
+                    onSuccess={handleApplicationSuccess}
+                />
+            )}
 
-                <div className="stats-container">
-                    <div className="stats-card">
-                        <h3>Application Statistics</h3>
-                        <div className="stats-grid">
-                            <div 
-                                className={`stat-item clickable ${activeFilter === 'all' ? 'active' : ''}`}
-                                onClick={() => handleStatClick('all')}
-                            >
-                                <span className="stat-label">Total Applications</span>
-                                <span className="stat-value">{stats.total}</span>
-                            </div>
-                            <div 
-                                className={`stat-item clickable ${activeFilter === 'selected' ? 'active' : ''}`}
-                                onClick={() => handleStatClick('selected')}
-                            >
-                                <span className="stat-label">Selected</span>
-                                <span className="stat-value selected">{stats.selected}</span>
-                            </div>
-                            <div 
-                                className={`stat-item clickable ${activeFilter === 'approved' ? 'active' : ''}`}
-                                onClick={() => handleStatClick('approved')}
-                            >
-                                <span className="stat-label">Approved</span>
-                                <span className="stat-value approved">{stats.approved}</span>
-                            </div>
-                            <div 
-                                className={`stat-item clickable ${activeFilter === 'underReview' ? 'active' : ''}`}
-                                onClick={() => handleStatClick('underReview')}
-                            >
-                                <span className="stat-label">Under Review</span>
-                                <span className="stat-value under-review">{stats.underReview}</span>
-                            </div>
-                            <div 
-                                className={`stat-item clickable ${activeFilter === 'rejected' ? 'active' : ''}`}
-                                onClick={() => handleStatClick('rejected')}
-                            >
-                                <span className="stat-label">Rejected</span>
-                                <span className="stat-value rejected">{stats.rejected}</span>
+            <div className="dashboard-content">
+                <div className="dashboard-wrapper">
+                    <div className="dashboard-container">
+                        <div className="dashboard-header">
+                            <h1>My Applications</h1>
+                            <div className="dashboard-actions">
+                                <div className="search-bar">
+                                    <FiSearch className="search-icon" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search by college or program..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                    />
+                                </div>
                             </div>
                         </div>
-                    </div>
-                </div>
 
-                <div className="applications-container">
-                    {loading ? (
-                        <div className="loading">
-                            <div className="loading-spinner"></div>
-                            <p>Loading your applications...</p>
-                        </div>
-                    ) : filteredApplications.length === 0 ? (
-                        <div className="no-applications">
-                            <FiBook className="empty-icon" />
-                            <p>No applications found{activeFilter !== 'all' ? ' for the selected status' : ''}. {activeFilter === 'all' && 'Start your academic journey today!'}</p>
-                            {activeFilter === 'all' && (
-                                <button 
-                                    className="apply-btn"
-                                    onClick={() => setShowApplicationForm(true)}
-                                >
-                                    Apply Now
-                                </button>
-                            )}
-                        </div>
-                    ) : (
-                        <div className="applications-grid">
-                            {filteredApplications.map((app) => (
-                                <div 
-                                    key={app.id} 
-                                    className={`application-card ${app.stage === 'stage2' ? 'clickable' : ''}`}
-                                    onClick={() => handleCardClick(app)}
-                                >
-                                    <div className="application-header">
-                                        <h3>{app.collegeName}</h3>
-                                        <div className="status-section">
-                                            <span className={`status-badge status-${app.stage}`}>
-                                                {getStatusIcon(app.stage)}
-                                                {app.stage === 'stage3' ? 'APPROVED' : 
-                                                 app.stage === 'stage1' ? 'UNDER REVIEW' :
-                                                 app.stage === 'stage2' ? 'ACCEPTED' : 'PENDING'}
-                                            </span>
-                                            {app.stage === 'stage2' && (
-                                                <button 
-                                                    className="accept-offer-btn"
-                                                    onClick={(e) => {
-                                                        e.preventDefault();
-                                                        e.stopPropagation();
-                                                        handleAcceptOffer(e, app.id);
-                                                    }}
-                                                >
-                                                    Accept Offer
-                                                </button>
-                                            )}
-                                        </div>
+                        <div className="stats-container">
+                            <div className="stats-card">
+                                <h3>Application Statistics</h3>
+                                <div className="stats-grid">
+                                    <div 
+                                        className={`stat-item clickable ${activeFilter === 'all' ? 'active' : ''}`}
+                                        onClick={() => handleStatClick('all')}
+                                    >
+                                        <span className="stat-label">Total Applications</span>
+                                        <span className="stat-value">{stats.total}</span>
                                     </div>
-                                    <div className="application-details">
-                                        <p>
-                                            <strong>Applied:</strong> {app.appliedDate.toLocaleDateString()}
-                                        </p>
-                                        <p>
-                                            <strong>Course:</strong> {app.course}
-                                        </p>
-                                        <p>
-                                            <strong>Application ID:</strong> {app.id.slice(0, 8)}
-                                        </p>
+                                    <div 
+                                        className={`stat-item clickable ${activeFilter === 'selected' ? 'active' : ''}`}
+                                        onClick={() => handleStatClick('selected')}
+                                    >
+                                        <span className="stat-label">Selected</span>
+                                        <span className="stat-value selected">{stats.selected}</span>
                                     </div>
-                                    
-                                    {showFeeDetails && selectedApplication?.id === app.id && (
-                                        renderFeeStructure(app)
-                                    )}
-                                    
-                                    {app.stage === 'stage2' && selectedApplication?.id !== app.id && (
-                                        <div className="view-fee-hint">
-                                            Click to view fee structure
-                                        </div>
+                                    <div 
+                                        className={`stat-item clickable ${activeFilter === 'approved' ? 'active' : ''}`}
+                                        onClick={() => handleStatClick('approved')}
+                                    >
+                                        <span className="stat-label">Approved</span>
+                                        <span className="stat-value approved">{stats.approved}</span>
+                                    </div>
+                                    <div 
+                                        className={`stat-item clickable ${activeFilter === 'underReview' ? 'active' : ''}`}
+                                        onClick={() => handleStatClick('underReview')}
+                                    >
+                                        <span className="stat-label">Under Review</span>
+                                        <span className="stat-value under-review">{stats.underReview}</span>
+                                    </div>
+                                    <div 
+                                        className={`stat-item clickable ${activeFilter === 'rejected' ? 'active' : ''}`}
+                                        onClick={() => handleStatClick('rejected')}
+                                    >
+                                        <span className="stat-label">Rejected</span>
+                                        <span className="stat-value rejected">{stats.rejected}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="applications-container">
+                            {loading ? (
+                                <div className="loading">
+                                    <div className="loading-spinner"></div>
+                                    <p>Loading your applications...</p>
+                                </div>
+                            ) : filteredApplications.length === 0 ? (
+                                <div className="no-applications">
+                                    <FiBook className="empty-icon" />
+                                    <p>No applications found{activeFilter !== 'all' ? ' for the selected status' : ''}. {activeFilter === 'all' && 'Start your academic journey today!'}</p>
+                                    {activeFilter === 'all' && (
+                                        <button 
+                                            className="apply-btn"
+                                            onClick={() => setShowApplicationForm(true)}
+                                        >
+                                            Apply Now
+                                        </button>
                                     )}
                                 </div>
-                            ))}
+                            ) : (
+                                <div className="applications-grid">
+                                    {filteredApplications.map((app) => (
+                                        <div 
+                                            key={app.id} 
+                                            className={`application-card ${app.stage === 'stage2' ? 'clickable' : ''}`}
+                                            onClick={() => handleCardClick(app)}
+                                        >
+                                            <div className="application-header">
+                                                <h3>{app.collegeName}</h3>
+                                                <div className="status-section">
+                                                    <span className={`status-badge status-${app.stage}`}>
+                                                        {getStatusIcon(app.stage)}
+                                                        {app.stage === 'stage3' ? 'APPROVED' : 
+                                                         app.stage === 'stage1' ? 'UNDER REVIEW' :
+                                                         app.stage === 'stage2' ? 'ACCEPTED' : 'PENDING'}
+                                                    </span>
+                                                    {app.stage === 'stage2' && (
+                                                        <button 
+                                                            className="accept-offer-btn"
+                                                            onClick={(e) => {
+                                                                e.preventDefault();
+                                                                e.stopPropagation();
+                                                                handleAcceptOffer(e, app.id);
+                                                            }}
+                                                        >
+                                                            Accept Offer
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="application-details">
+                                                <p>
+                                                    <strong>Applied:</strong> {app.appliedDate.toLocaleDateString()}
+                                                </p>
+                                                <p>
+                                                    <strong>Course:</strong> {app.course}
+                                                </p>
+                                                <p>
+                                                    <strong>Application ID:</strong> {app.id.slice(0, 8)}
+                                                </p>
+                                            </div>
+                                            
+                                            {showFeeDetails && selectedApplication?.id === app.id && (
+                                                renderFeeStructure(app)
+                                            )}
+                                            
+                                            {app.stage === 'stage2' && selectedApplication?.id !== app.id && (
+                                                <div className="view-fee-hint">
+                                                    Click to view fee structure
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
-                    )}
+                    </div>
                 </div>
-
-                {showApplicationForm && (
-                    <ApplicationForm 
-                        onClose={() => setShowApplicationForm(false)}
-                        onSuccess={handleApplicationSuccess}
-                    />
-                )}
             </div>
         </div>
     );
