@@ -91,11 +91,18 @@ const ApplicationForm = ({ onClose, onSuccess }) => {
                 ...formData,
                 studentId: auth.currentUser.uid,
                 status: 'under_review',
-                appliedDate: new Date().toISOString(),
-                lastUpdated: new Date().toISOString(),
+                stage: 'stage1',
+                appliedDate: new Date(),
+                lastUpdated: new Date(),
                 collegeName: formData.collegePreference,
-                course: formData.desiredCourse
+                course: formData.desiredCourse,
+                documents: {
+                    transcript: false,
+                    recommendation: false
+                }
             };
+
+            console.log('Submitting application with data:', applicationData);
 
             const docRef = await addDoc(collection(db, 'applications'), applicationData);
             console.log('Application submitted successfully with ID:', docRef.id);

@@ -1,0 +1,148 @@
+.fee-form-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.fee-form-container {
+  background: #2C2C2C;
+  padding: 2rem;
+  border-radius: 8px;
+  border: 1px solid #4A90E2;
+  width: 90%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.fee-form-container h2 {
+  color: #4A90E2;
+  margin-bottom: 1.5rem;
+  text-align: center;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #4A4A4A;
+}
+
+.fee-form-group {
+  margin-bottom: 1.5rem;
+}
+
+.fee-form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #888;
+  font-weight: 500;
+}
+
+.fee-form-group input {
+  width: 100%;
+  padding: 0.75rem;
+  background: #383838;
+  border: 1px solid #4A4A4A;
+  border-radius: 4px;
+  color: #FFFFFF;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+}
+
+.fee-form-group input:focus {
+  outline: none;
+  border-color: #4A90E2;
+  box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2);
+}
+
+.fee-form-group input.readonly {
+  background: #242424;
+  cursor: not-allowed;
+  border-color: #4A90E2;
+  color: #4A90E2;
+  font-weight: 600;
+}
+
+.fee-form-group input[type="date"] {
+  color-scheme: dark;
+}
+
+.fee-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #4A4A4A;
+}
+
+.fee-form-actions button {
+  padding: 0.75rem 2rem;
+  border: none;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.submit-btn {
+  background: #4A90E2;
+  color: white;
+}
+
+.submit-btn:hover {
+  background: #357ABD;
+}
+
+.cancel-btn {
+  background: #383838;
+  color: #FFFFFF;
+  border: 1px solid #4A4A4A;
+}
+
+.cancel-btn:hover {
+  background: #2C2C2C;
+  border-color: #E74C3C;
+  color: #E74C3C;
+}
+
+/* Scrollbar Styles */
+.fee-form-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.fee-form-container::-webkit-scrollbar-track {
+  background: #2C2C2C;
+}
+
+.fee-form-container::-webkit-scrollbar-thumb {
+  background: #4A90E2;
+  border-radius: 4px;
+}
+
+.fee-form-container::-webkit-scrollbar-thumb:hover {
+  background: #357ABD;
+}
+
+/* Mobile Styles */
+@media (max-width: 768px) {
+  .fee-form-container {
+    padding: 1.5rem;
+    width: 95%;
+  }
+
+  .fee-form-actions {
+    flex-direction: column;
+  }
+
+  .fee-form-actions button {
+    width: 100%;
+  }
+
+  .submit-btn {
+    order: -1;
+  }
+} 

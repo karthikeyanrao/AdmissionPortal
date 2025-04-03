@@ -1,195 +1,379 @@
 import React, { useState, useEffect } from 'react';
+import { db, auth } from '../firebase';
+import { collection, query, getDocs, doc, updateDoc, where, getDoc } from 'firebase/firestore';
+import { FiFileText } from 'react-icons/fi';
 import { useNavigate } from 'react-router-dom';
+import FeeForm from './FeeForm';
+import ViewMore from './ViewMore';
 import './AdminDashboard.css';
 
 const AdminDashboard = () => {
     const navigate = useNavigate();
-    const [activeStage, setActiveStage] = useState(1);
     const [applications, setApplications] = useState([]);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
+    const [filteredApplications, setFilteredApplications] = useState([]);
+    const [currentStage, setCurrentStage] = useState('stage1');
+    const [loading, setLoading] = useState(true);
+    const [adminCollege, setAdminCollege] = useState('');
+    const [error, setError] = useState(null);
+    const [selectedStage, setSelectedStage] = useState('all');
+    const [showFeeForm, setShowFeeForm] = useState(false);
+    const [selectedApplication, setSelectedApplication] = useState(null);
+    const [showViewMore, setShowViewMore] = useState(false);
+    const [isUpdatingFee, setIsUpdatingFee] = useState(false);
 
-    // Simulated data for testing
     useEffect(() => {
-        const mockApplications = {
-            1: [ // Stage 1: New Applications
-                {
-                    id: '1',
-                    studentName: 'John Doe',
-                    email: 'john@example.com',
-                    phone: '+1234567890',
-                    course: 'Computer Science',
-                    appliedDate: '2024-03-15T10:00:00.000Z',
-                    status: 'pending',
-                    documents: ['transcript', 'recommendation'],
-                    stage: 1
-                },
-                {
-                    id: '2',
-                    studentName: 'Jane Smith',
-                    email: 'jane@example.com',
-                    phone: '+1234567891',
-                    course: 'Data Science',
-                    appliedDate: '2024-03-14T15:30:00.000Z',
-                    status: 'pending',
-                    documents: ['transcript'],
-                    stage: 1
-                }
-            ],
-            2: [ // Stage 2: Document Verification
-                {
-                    id: '3',
-                    studentName: 'Mike Johnson',
-                    email: 'mike@example.com',
-                    phone: '+1234567892',
-                    course: 'Artificial Intelligence',
-                    appliedDate: '2024-03-13T09:15:00.000Z',
-                    status: 'in_review',
-                    documents: ['transcript', 'recommendation', 'statement'],
-                    stage: 2
-                }
-            ],
-            3: [ // Stage 3: Final Approval
-                {
-                    id: '4',
-                    studentName: 'Sarah Williams',
-                    email: 'sarah@example.com',
-                    phone: '+1234567893',
-                    course: 'Cybersecurity',
-                    appliedDate: '2024-03-12T14:20:00.000Z',
-                    status: 'approved',
-                    documents: ['transcript', 'recommendation', 'statement', 'interview'],
-                    stage: 3
-                }
-            ]
-        };
+        const unsubscribe = auth.onAuthStateChanged(async (user) => {
+            if (!user) {
+                console.log('No user logged in, redirecting to login');
+                navigate('/login');
+                return;
+            }
 
-        setApplications(mockApplications);
-    }, []);
+            try {
+                console.log('Fetching admin data for user:', user.uid);
+                const userDoc = await getDoc(doc(db, 'users', user.uid));
+                
+                if (!userDoc.exists()) {
+                    console.error('User document not found');
+                    setError('User document not found');
+                    navigate('/login');
+                    return;
+                }
 
-    const handleLogout = () => {
-        navigate('/');
+                const userData = userDoc.data();
+                console.log('User data:', userData);
+
+                if (userData.role !== 'admin') {
+                    console.error('User is not an admin');
+                    setError('Unauthorized access');
+                    navigate('/login');
+                    return;
+                }
+
+                if (!userData.college) {
+                    console.error('Admin college is not set');
+                    setError('Admin college is not configured');
+                    return;
+                }
+
+                console.log('Admin college:', userData.college);
+                setAdminCollege(userData.college);
+                await fetchApplications(userData.college);
+            } catch (error) {
+                console.error('Error in auth check:', error);
+                setError('Error checking authentication: ' + error.message);
+                setLoading(false);
+            }
+        });
+
+        return () => unsubscribe();
+    }, [navigate]);
+
+    useEffect(() => {
+        if (applications.length > 0) {
+            filterApplications(currentStage);
+        }
+    }, [applications, currentStage]);
+
+    const fetchApplications = async (college) => {
+        try {
+            if (!college) {
+                console.error('College name is undefined');
+                setError('Error: College name is missing');
+                setLoading(false);
+                return;
+            }
+
+            console.log('Starting to fetch applications for college:', college);
+            setLoading(true);
+            setError(null);
+
+            const applicationsRef = collection(db, 'applications');
+            const q = query(applicationsRef, where('collegeName', '==', college));
+            
+            console.log('Executing Firestore query...');
+            const querySnapshot = await getDocs(q);
+            console.log('Query complete. Found documents:', querySnapshot.size);
+
+            const apps = [];
+            querySnapshot.forEach((doc) => {
+                const data = doc.data();
+                console.log('Processing application:', doc.id, data);
+                
+                // Convert timestamps to dates if they exist
+                const appliedDate = data.appliedDate?.toDate?.() || new Date(data.appliedDate);
+                const lastUpdated = data.lastUpdated?.toDate?.() || new Date(data.lastUpdated);
+
+                apps.push({
+                    id: doc.id,
+                    ...data,
+                    appliedDate,
+                    lastUpdated,
+                    stage: data.stage || 'stage1'
+                });
+            });
+
+            console.log('Processed applications:', apps.length);
+            setApplications(apps);
+            setFilteredApplications(apps); // Set initial filtered applications
+        } catch (error) {
+            console.error('Error fetching applications:', error);
+            setError('Error fetching applications: ' + error.message);
+        } finally {
+            setLoading(false);
+        }
     };
 
-    const moveToNextStage = (applicationId, currentStage) => {
-        if (currentStage >= 3) return;
-
-        const nextStage = currentStage + 1;
-        const updatedApplications = { ...applications };
-
-        // Find the application and remove it from current stage
-        const applicationToMove = applications[currentStage].find(app => app.id === applicationId);
-        updatedApplications[currentStage] = applications[currentStage].filter(app => app.id !== applicationId);
-
-        // Add to next stage
-        if (applicationToMove) {
-            applicationToMove.stage = nextStage;
-            updatedApplications[nextStage] = [...(applications[nextStage] || []), applicationToMove];
+    const filterApplications = (stage) => {
+        console.log('Filtering applications for stage:', stage);
+        console.log('Total applications:', applications.length);
+        
+        if (stage === 'all') {
+            setFilteredApplications(applications);
+        } else {
+            const filtered = applications.filter(app => app.stage === stage);
+            console.log('Filtered applications:', filtered.length);
+            setFilteredApplications(filtered);
         }
-
-        setApplications(updatedApplications);
     };
 
-    const getStageTitle = (stage) => {
-        switch (stage) {
-            case 1:
-                return 'Stage 1: New Applications';
-            case 2:
-                return 'Stage 2: Document Verification';
-            case 3:
-                return 'Stage 3: Final Approval';
-            default:
-                return '';
+    const handleStageChange = async (applicationId, currentStage, newStage) => {
+        try {
+            if (newStage === 'stage2') {
+                // First show fee form and wait for fee details to be set
+                setSelectedApplication(applicationId);
+                setShowFeeForm(true);
+                return; // Don't update stage yet - it will be updated after fee submission
+            }
+
+            const applicationRef = doc(db, 'applications', applicationId);
+            
+            // Get current application data
+            const applicationDoc = await getDoc(applicationRef);
+            if (!applicationDoc.exists()) {
+                throw new Error('Application not found');
+            }
+
+            const currentData = applicationDoc.data();
+
+            // For stage2, ensure fee details exist
+            if (newStage === 'stage2' && !currentData.feeDetails) {
+                alert('Please set fee details before moving to stage 2');
+                setSelectedApplication(applicationId);
+                setShowFeeForm(true);
+                return;
+            }
+
+            await updateDoc(applicationRef, {
+                stage: newStage,
+                lastUpdated: new Date()
+            });
+
+            console.log(`Application ${applicationId} moved to ${newStage}`);
+            await fetchApplications(adminCollege);
+        } catch (error) {
+            console.error('Error updating stage:', error);
+            alert('Failed to update application stage. Please try again.');
         }
+    };
+
+    const handleFeeFormClose = () => {
+        setShowFeeForm(false);
+        setSelectedApplication(null);
+        setIsUpdatingFee(false);
+    };
+
+    const handleUpdateFeeStructure = (application) => {
+        setSelectedApplication(application.id);
+        setShowFeeForm(true);
+        setIsUpdatingFee(true);
+    };
+
+    const handleLogout = async () => {
+        try {
+            await auth.signOut();
+            navigate('/login');
+        } catch (error) {
+            console.error('Error logging out:', error);
+            setError('Error logging out: ' + error.message);
+        }
+    };
+
+    const getStageCount = (stage) => {
+        return applications.filter(app => app.stage === stage).length;
+    };
+
+    const handleStageFilter = (stage) => {
+        setSelectedStage(stage);
+    };
+
+    const getFilteredApplications = () => {
+        if (selectedStage === 'all') return applications;
+        return applications.filter(app => app.stage === selectedStage);
+    };
+
+    const handleMoveToStage = (application) => {
+        if (application.stage === 'stage1') {
+            setSelectedApplication(application);
+            setShowFeeForm(true);
+        }
+    };
+
+    const handleFeeSubmit = async () => {
+        await fetchApplications(adminCollege);
+        setShowFeeForm(false);
+        setSelectedApplication(null);
+    };
+
+    const handleViewMore = (application) => {
+        setSelectedApplication(application);
+        setShowViewMore(true);
     };
 
     if (loading) {
-        return (
-            <div className="dashboard-container">
-                <div className="loading">Loading...</div>
-            </div>
-        );
+        return <div className="loading">Loading...</div>;
+    }
+
+    if (error) {
+        return <div className="error">{error}</div>;
     }
 
     return (
-        <div className="dashboard-container">
-            <header className="dashboard-header">
-                <div className="header-content">
-                    <h1>Admin Dashboard</h1>
-                    <div className="admin-info">
-                        <span>Welcome, Admin</span>
-                        <button onClick={handleLogout} className="logout-btn">
-                            Logout
-                        </button>
+        <div className="admin-dashboard">
+            <div className="dashboard-header">
+                <h1>Admin Dashboard</h1>
+                <div className="welcome-text">
+                    {adminCollege ? `Welcome, Admin of ${adminCollege}` : 'Loading...'}
+                </div>
+                <button className="logout-btn" onClick={handleLogout}>Logout</button>
+            </div>
+
+            {error && (
+                <div className="error-message">
+                    {error}
+                </div>
+            )}
+
+            <div className="stage-cards">
+                <div className={`stage-card ${currentStage === 'stage1' ? 'active' : ''}`}
+                     onClick={() => setCurrentStage('stage1')}>
+                    <h3>Stage 1: New Applications</h3>
+                    <div className="count">{getStageCount('stage1')}</div>
+                </div>
+                <div className={`stage-card ${currentStage === 'stage2' ? 'active' : ''}`}
+                     onClick={() => setCurrentStage('stage2')}>
+                    <h3>Stage 2: Document Verification</h3>
+                    <div className="count">{getStageCount('stage2')}</div>
+                </div>
+                <div className={`stage-card ${currentStage === 'stage3' ? 'active' : ''}`}
+                     onClick={() => setCurrentStage('stage3')}>
+                    <h3>Stage 3: Final Approval</h3>
+                    <div className="count">{getStageCount('stage3')}</div>
+                </div>
+            </div>
+
+            <div className="stage-content">
+                <h2>{
+                    currentStage === 'stage1' ? 'Stage 1: New Applications' :
+                    currentStage === 'stage2' ? 'Stage 2: Document Verification' :
+                    'Stage 3: Final Approval'
+                }</h2>
+
+                {loading ? (
+                    <div className="loading">
+                        <div className="loading-spinner"></div>
+                        <p>Loading applications...</p>
                     </div>
-                </div>
-            </header>
-
-            <main className="dashboard-main">
-                <div className="stage-selector">
-                    {[1, 2, 3].map(stage => (
-                        <button
-                            key={stage}
-                            className={`stage-btn ${activeStage === stage ? 'active' : ''}`}
-                            onClick={() => setActiveStage(stage)}
-                        >
-                            {getStageTitle(stage)}
-                            <span className="application-count">
-                                {applications[stage]?.length || 0}
-                            </span>
-                        </button>
-                    ))}
-                </div>
-
-                <div className="dashboard-card">
-                    <h2>{getStageTitle(activeStage)}</h2>
-                    {error && <div className="error-message">{error}</div>}
-                    
-                    <div className="applications-container">
-                        {applications[activeStage]?.map(application => (
+                ) : filteredApplications.length === 0 ? (
+                    <div className="no-applications">
+                        <FiFileText className="empty-icon" />
+                        <p>No applications found for this stage</p>
+                    </div>
+                ) : (
+                    <div className="applications-grid">
+                        {filteredApplications.map((application) => (
                             <div key={application.id} className="application-card">
-                                <div className="application-header">
-                                    <h3>{application.studentName}</h3>
-                                    <span className={`status-badge ${application.status}`}>
-                                        {application.status}
-                                    </span>
+                                <div className="card-header">
+                                    <h3>{application.fullName}</h3>
+                                    <span className="status-badge">PENDING</span>
                                 </div>
-                                
-                                <div className="application-details">
-                                    <p><strong>Course:</strong> {application.course}</p>
-                                    <p><strong>Email:</strong> {application.email}</p>
-                                    <p><strong>Phone:</strong> {application.phone}</p>
-                                    <p><strong>Applied:</strong> {new Date(application.appliedDate).toLocaleDateString()}</p>
-                                </div>
-
-                                <div className="documents-section">
-                                    <h4>Documents Submitted:</h4>
-                                    <div className="document-tags">
-                                        {application.documents.map(doc => (
-                                            <span key={doc} className="document-tag">{doc}</span>
-                                        ))}
+                                <div className="card-content">
+                                    <div className="info-row">
+                                        <label>Course:</label>
+                                        <span>{application.course}</span>
+                                    </div>
+                                    <div className="info-row">
+                                        <label>Email:</label>
+                                        <span>{application.email}</span>
+                                    </div>
+                                    <div className="info-row">
+                                        <label>Phone:</label>
+                                        <span>{application.phone}</span>
+                                    </div>
+                                    <div className="info-row">
+                                        <label>Applied:</label>
+                                        <span>{application.appliedDate.toLocaleDateString()}</span>
+                                    </div>
+                                    
+                                    <div className="documents-section">
+                                        <h4>Documents Submitted:</h4>
+                                        <div className="document-tags">
+                                            {application.documents?.transcript && (
+                                                <span className="document-tag">transcript</span>
+                                            )}
+                                            {application.documents?.recommendation && (
+                                                <span className="document-tag">recommendation</span>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
-
-                                {application.stage < 3 && (
-                                    <button
-                                        onClick={() => moveToNextStage(application.id, application.stage)}
-                                        className="action-btn approve"
+                                <div className="card-actions">
+                                    <div className="stage-buttons">
+                                        {application.stage === 'stage1' && (
+                                            <button 
+                                                onClick={() => handleStageChange(application.id, application.stage, 'stage2')}
+                                                className="stage-btn stage2-btn"
+                                            >
+                                                Move to Stage 2
+                                            </button>
+                                        )}
+                                    </div>
+                                    <button 
+                                        className="action-btn view-more"
+                                        onClick={() => handleViewMore(application)}
                                     >
-                                        Move to {getStageTitle(application.stage + 1)}
+                                        View Details
                                     </button>
-                                )}
+                                    {application.stage === 'stage2' && (
+                                        <button 
+                                            className="action-btn fee-structure"
+                                            onClick={() => handleUpdateFeeStructure(application)}
+                                        >
+                                            Update Fee Structure
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         ))}
-                        
-                        {(!applications[activeStage] || applications[activeStage].length === 0) && (
-                            <div className="no-applications">
-                                No applications in this stage
-                            </div>
-                        )}
                     </div>
-                </div>
-            </main>
+                )}
+            </div>
+
+            {showFeeForm && selectedApplication && (
+                <FeeForm 
+                    applicationId={selectedApplication}
+                    onClose={handleFeeFormClose}
+                    onSubmitSuccess={handleFeeSubmit}
+                    isUpdating={isUpdatingFee}
+                />
+            )}
+
+            {showViewMore && selectedApplication && (
+                <ViewMore
+                    application={selectedApplication}
+                    onClose={() => setShowViewMore(false)}
+                />
+            )}
         </div>
     );
 };

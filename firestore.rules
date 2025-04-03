@@ -2,8 +2,38 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if false;
+    match /applications/{applicationId} {
+      allow read: if request.auth != null && (
+        resource.data.studentId == request.auth.uid || 
+        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.college == resource.data.collegeName
+      );
+      
+      allow create: if request.auth != null;
+      
+      allow update: if request.auth != null && (
+        // Allow students to update their own applications
+        (resource.data.studentId == request.auth.uid && 
+         // Ensure all required fields are present
+         request.resource.data.stage is string &&
+         request.resource.data.status is string &&
+         request.resource.data.lastUpdated is timestamp &&
+         // Make sure other fields remain unchanged
+         request.resource.data.studentId == resource.data.studentId &&
+         request.resource.data.collegeName == resource.data.collegeName &&
+         // Only allow specific stage transitions
+         ((resource.data.stage == 'stage2' && request.resource.data.stage == 'stage3') ||
+          resource.data.stage == request.resource.data.stage)) ||
+        // Allow admins to update any application for their college
+        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.college == resource.data.collegeName
+      );
+      
+      allow delete: if request.auth != null && 
+        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.college == resource.data.collegeName;
+    }
+    
+    match /admins/{adminId} {
+      allow read: if request.auth != null;
+      allow write: if false; // Only allow admin creation through backend
     }
   }
 }

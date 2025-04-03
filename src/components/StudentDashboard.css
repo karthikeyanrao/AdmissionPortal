@@ -165,8 +165,7 @@
 
 /* Applications Grid */
 .applications-grid {
-    
-    
+    display: flex;
     flex-wrap: wrap;
     gap: 1.5rem;
     justify-content: flex-start;
@@ -194,9 +193,10 @@
 .application-header {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
+    align-items: center;
     margin-bottom: 1rem;
-    gap: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .application-header h3 {
@@ -380,9 +380,15 @@
 
 /* Search Bar Improvements */
 .search-bar {
+    display: flex;
+    align-items: center;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
     flex: 1;
-    position: relative;
-    max-width: 500px;
+    min-width: 400px;
+    max-width: 800px;
+    margin: 0 auto;
 }
 
 .search-icon {
@@ -414,8 +420,8 @@
 }
 
 .status-badge.status-selected {
-    background-color: var(--light-blue);
-    color: var(--dark-blue);
+    background-color:rgb(5, 247, 5);
+    color: white;
 }
 
 .status-badge.status-approved {
@@ -444,7 +450,7 @@
 /* Empty State */
 .no-applications {
     display: flex;
-    flex-direction: column;
+    flex-direction: column; 
     align-items: center;
     padding: 4rem 2rem;
 }
@@ -545,4 +551,600 @@
     --primary-hover: #1557b0;
     --light-blue: #e8f0fe;
     --dark-blue: #174ea6;
+}
+
+/* Fee Structure Styles */
+.fee-structure-section {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid rgba(74, 144, 226, 0.2);
+    animation: fadeIn 0.3s ease-in;
+}
+
+.fee-structure-section h4 {
+    color: #4A90E2;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0 0 1rem 0;
+    font-size: 1.1rem;
+}
+
+.fee-icon {
+    color: #4A90E2;
+}
+
+.fee-details {
+    background: rgba(74, 144, 226, 0.05);
+    border-radius: 8px;
+    padding: 1.5rem;
+    border: 1px solid rgba(74, 144, 226, 0.1);
+}
+
+.fee-details p {
+    margin: 0;
+    color: #888;
+    text-align: center;
+    font-style: italic;
+}
+
+.fee-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 0;
+    color: inherit;
+}
+
+.fee-row:not(:last-child) {
+    border-bottom: 1px solid rgba(74, 144, 226, 0.1);
+}
+
+.fee-row.total {
+    margin-top: 0.5rem;
+    padding-top: 1rem;
+    border-top: 2px solid rgba(74, 144, 226, 0.2);
+    font-weight: bold;
+    color: #4A90E2;
+}
+
+.payment-status {
+    padding: 0.25rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.payment-status.pending {
+    background: rgba(255, 193, 7, 0.1);
+    color: #ffc107;
+}
+
+.payment-status.paid {
+    background: rgba(40, 167, 69, 0.1);
+    color: #28a745;
+}
+
+.payment-status.overdue {
+    background: rgba(220, 53, 69, 0.1);
+    color: #dc3545;
+}
+
+.view-fee-hint {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    background: rgba(74, 144, 226, 0.1);
+    border-radius: 6px;
+    color: #4A90E2;
+    text-align: center;
+    font-size: 0.9rem;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 0.6;
+    }
+    50% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0.6;
+    }
+}
+
+/* Dark mode styles */
+@media (prefers-color-scheme: dark) {
+    .fee-details {
+        background: rgba(74, 144, 226, 0.1);
+        border-color: rgba(74, 144, 226, 0.2);
+    }
+
+    .fee-row {
+        color: #fff;
+    }
+
+    .fee-details p {
+        color: #888;
+    }
+
+    .fee-row:not(:last-child) {
+        border-bottom-color: rgba(74, 144, 226, 0.2);
+    }
+
+    .fee-row.total {
+        border-top-color: rgba(74, 144, 226, 0.3);
+    }
+
+    .view-fee-hint {
+        background: rgba(74, 144, 226, 0.15);
+    }
+}
+
+/* Update existing status badge styles */
+.status-badge.status-selected {
+    background-color: rgba(76, 175, 80, 0.1);
+    color: #81C784;
+}
+
+.status-badge.status-stage1 {
+    background-color: rgba(255, 152, 0, 0.1);
+    color: #FFA726;
+}
+
+.status-badge.status-stage2 {
+    background-color: rgba(33, 150, 243, 0.1);
+    color: #64B5F6;
+}
+
+.status-badge.status-stage3 {
+    background-color: rgba(76, 175, 80, 0.1);
+    color: #4CAF50;
+}
+
+.status-badge.clickable {
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.status-badge.clickable:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(33, 150, 243, 0.2);
+}
+
+.status-badge.clickable:active {
+    transform: translateY(0);
+}
+
+.status-badge.clickable::after {
+    content: "Click to view fee structure";
+    position: absolute;
+    bottom: -30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+}
+
+.status-badge.clickable:hover::after {
+    opacity: 1;
+}
+
+.application-card.clickable {
+    cursor: pointer;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.application-card.clickable:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(33, 150, 243, 0.2);
+    border-color: #4A90E2;
+}
+
+.application-card.clickable::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border-radius: 12px;
+    border: 2px solid transparent;
+    transition: all 0.3s ease;
+}
+
+.application-card.clickable:hover::before {
+    border-color: #4A90E2;
+}
+
+/* Update application details text color for better visibility */
+.application-details p {
+    color: #333;
+}
+
+.application-details strong {
+    color: #666;
+    min-width: 100px;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .application-details p {
+        color: #E0E0E0;
+    }
+
+    .application-details strong {
+        color: #FFFFFF;
+    }
+
+    .view-fee-hint {
+        background: rgba(74, 144, 226, 0.15);
+        color: #64B5F6;
+    }
+}
+
+.fee-details .contact-info {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(74, 144, 226, 0.1);
+    color: #4A90E2;
+    font-style: normal;
+    font-weight: 500;
+}
+
+@media (prefers-color-scheme: dark) {
+    .fee-details .contact-info {
+        color: #64B5F6;
+        border-top-color: rgba(74, 144, 226, 0.2);
+    }
+}
+
+.accept-offer-section {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid rgba(74, 144, 226, 0.2);
+    text-align: center;
+}
+
+.accept-offer-btn {
+    background: #28a745;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+    position: relative;
+    z-index: 10;
+    margin-left: 1rem;
+}
+
+.accept-offer-btn:hover {
+    background: #218838;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(40, 167, 69, 0.2);
+}
+
+.accept-offer-btn:active {
+    transform: translateY(0);
+}
+
+.accept-offer-btn:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.3);
+}
+
+.accept-note {
+    margin-top: 1rem;
+    color: #666;
+    font-size: 0.9rem;
+    font-style: italic;
+}
+
+/* Dark mode styles */
+@media (prefers-color-scheme: dark) {
+    .accept-offer-section {
+        border-top-color: rgba(74, 144, 226, 0.3);
+    }
+
+    .accept-offer-btn {
+        background: #2ea043;
+    }
+
+    .accept-offer-btn:hover {
+        background: #3fb950;
+    }
+
+    .accept-offer-btn:focus {
+        box-shadow: 0 0 0 3px rgba(46, 160, 67, 0.3);
+    }
+
+    .accept-note {
+        color: #888;
+    }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .status-badge.status-stage1 {
+        background-color: rgba(255, 152, 0, 0.15);
+        color: #FFB74D;
+    }
+
+    .status-badge.status-stage2 {
+        background-color: rgba(33, 150, 243, 0.15);
+        color: #90CAF9;
+    }
+
+    .status-badge.status-stage3 {
+        background-color: rgba(76, 175, 80, 0.15);
+        color: #81C784;
+    }
+}
+
+.status-section {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    position: relative;
+    z-index: 5;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+    .status-section {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+
+    .accept-offer-btn {
+        width: 100%;
+        text-align: center;
+        margin-top: 0.5rem;
+        margin-left: 0;
+    }
+}
+
+.dashboard-actions {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+}
+
+.search-bar {
+    display: flex;
+    align-items: center;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
+    flex: 1;
+    min-width: 400px;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.search-bar input {
+    border: none;
+    background: none;
+    padding: 0.5rem;
+    width: 100%;
+    color: var(--text-primary);
+    font-size: 1rem;
+}
+
+.search-bar input:focus {
+    outline: none;
+}
+
+.search-icon {
+    color: var(--text-secondary);
+    margin-right: 0.5rem;
+}
+
+.filter-section {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.filter-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.filter-btn:hover {
+    background: var(--bg-hover);
+}
+
+.filter-btn.active {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+.stats-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.stats-btn:hover {
+    background: var(--bg-hover);
+}
+
+.stats-container {
+    margin-bottom: 2rem;
+    padding: 1.5rem;
+    background: var(--bg-secondary);
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.stats-card {
+    padding: 1.5rem;
+}
+
+.stats-card h3 {
+    margin-bottom: 1.5rem;
+    color: var(--text-primary);
+    font-size: 1.25rem;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 1rem;
+    background: var(--bg-primary);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+}
+
+.stat-label {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.stat-value.selected {
+    color: #3498db;
+}
+
+.stat-value.approved {
+    color: #2ecc71;
+}
+
+.stat-value.under-review {
+    color: #f1c40f;
+}
+
+.stat-value.rejected {
+    color: #e74c3c;
+}
+
+.stat-item.clickable {
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.stat-item.clickable:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    border-color: var(--primary-color);
+}
+
+.stat-item.clickable:active {
+    transform: translateY(0);
+}
+
+.stat-item.active {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.stat-item.active .stat-label,
+.stat-item.active .stat-value {
+    color: white;
+}
+
+.stat-item.clickable::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    border-radius: 8px;
+    border: 2px solid transparent;
+    transition: all 0.3s ease;
+    pointer-events: none;
+}
+
+.stat-item.clickable:hover::before {
+    border-color: var(--primary-color);
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .stat-item.clickable:hover {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .stat-item.active {
+        background: var(--primary-color);
+    }
+
+    .stat-item.active .stat-label,
+    .stat-item.active .stat-value {
+        color: white;
+    }
+}
+
+@media (max-width: 768px) {
+    .dashboard-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .search-bar {
+        width: 100%;
+    }
+
+    .filter-section {
+        justify-content: center;
+    }
+
+    .stats-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Update mobile responsiveness for search bar */
+@media (max-width: 768px) {
+    .search-bar {
+        min-width: 100%;
+        max-width: 100%;
+    }
 }

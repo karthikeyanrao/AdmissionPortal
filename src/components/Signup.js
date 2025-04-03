@@ -12,7 +12,8 @@ const Signup = () => {
         email: '',
         password: '',
         confirmPassword: '',
-        role: 'student'
+        role: 'student',
+        college: ''
     });
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
@@ -37,6 +38,13 @@ const Signup = () => {
 
         if (formData.password.length < 6) {
             setError('Password should be at least 6 characters');
+            setLoading(false);
+            return;
+        }
+
+        // Validate college field for admin
+        if (formData.role === 'admin' && !formData.college.trim()) {
+            setError('College name is required for admin accounts');
             setLoading(false);
             return;
         }
@@ -73,6 +81,11 @@ const Signup = () => {
                 status: 'active',
                 applications: []
             };
+
+            // Add college field for admin
+            if (formData.role === 'admin') {
+                userData.college = formData.college;
+            }
 
             try {
                 // Create user document in Firestore
@@ -168,7 +181,7 @@ const Signup = () => {
                     <button
                         type="button"
                         className={`role-btn ${formData.role === 'student' ? 'active' : ''}`}
-                        onClick={() => setFormData({...formData, role: 'student'})}
+                        onClick={() => setFormData({...formData, role: 'student', college: ''})}
                     >
                         Student
                     </button>
@@ -202,6 +215,26 @@ const Signup = () => {
                             className="form-input"
                         />
                     </div>
+
+                    {formData.role === 'admin' && (
+                        <div className="form-group">
+                            <select
+                                value={formData.college}
+                                onChange={(e) => setFormData({...formData, college: e.target.value})}
+                                required
+                                className="form-input"
+                            >
+                                <option value="">Select College</option>
+                                <option value="IIT Madras">IIT Madras</option>
+                                <option value="IIT Bombay">IIT Bombay</option>
+                                <option value="IIT Delhi">IIT Delhi</option>
+                                <option value="AIIMS Delhi">AIIMS Delhi</option>
+                                <option value="Amrita">Amrita</option>
+                                <option value="NIT Trichy">NIT Trichy</option>
+                            </select>
+                        </div>
+                    )}
+
                     <div className="form-group">
                         <input
                             type="password"
